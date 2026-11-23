@@ -69,7 +69,18 @@ jobs:
           flutter-version: "3.24.3"
           channel: "stable"
           cache: true
-
+      - name: Garantir Android NDK 25.1.8937393 no build.gradle
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          BUILD_GRADLE="android/app/build.gradle"
+          if [ -f "$BUILD_GRADLE" ]; then
+            if grep -q "ndkVersion" "$BUILD_GRADLE"; then
+              sed -i 's/ndkVersion.*/ndkVersion = "25.1.8937393"/' "$BUILD_GRADLE"
+            else
+              sed -i 's/android {/android {\n        ndkVersion = "25.1.8937393"/' "$BUILD_GRADLE"
+            fi
+          fi
+          
       - name: 5. Instalar dependências e compilar APK
         working-directory: ${{ env.PROJECT_DIR }}
         run: |

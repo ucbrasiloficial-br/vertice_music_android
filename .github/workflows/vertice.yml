@@ -28,8 +28,18 @@ jobs:
           flutter-version: "3.24.3"
           channel: stable
 
-      - name: Ajustar NDK
-        run: sed -i 's/ndkVersion.*/ndkVersion = "25.1.8937393"/' android/app/build.gradle || true
+      - name: Ajustar NDK e Kotlin Gradle Plugin
+        run: |
+          if [ -f "android/app/build.gradle" ]; then
+            sed -i 's/ndkVersion.*/ndkVersion = "25.1.8937393"/' android/app/build.gradle || true
+          fi
+          for f in android/settings.gradle android/settings.gradle.kts android/build.gradle; do
+            if [ -f "$f" ]; then
+              sed -i -E 's/(org\.jetbrains\.kotlin\.android["'\'']?\s*version\s*["'\'']?)[0-9]+\.[0-9]+\.[0-9]+/\12.1.0/g' "$f" || true
+              sed -i -E 's/(ext\.kotlin_version\s*=\s*["'\''])[0-9]+\.[0-9]+\.[0-9]+/\12.1.0/g' "$f" || true
+              sed -i -E 's/(kotlin_version\s*=\s*["'\''])[0-9]+\.[0-9]+\.[0-9]+/\12.1.0/g' "$f" || true
+            fi
+          done
 
       - name: Baixar dependencias
         run: flutter pub get

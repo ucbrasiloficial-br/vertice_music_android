@@ -1,0 +1,50 @@
+name: Build VÉRTICE MUSIC APK
+
+on:
+  push:
+    branches: [ "main", "master" ]
+  pull_request:
+    branches: [ "main", "master" ]
+  workflow_dispatch:
+
+jobs:
+  build-android-apk:
+    name: Build & Test Android APK
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 1. Baixar o repositório
+        uses: actions/checkout@v4
+
+      - name: 2. Instalar Java compatível (JDK 17)
+        uses: actions/setup-java@v4
+        with:
+          distribution: "temurin"
+          java-version: "17"
+          cache: "gradle"
+
+      - name: 3. Configurar Android SDK e Instalar Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.24.3"
+          channel: "stable"
+          cache: true
+
+      - name: 4. Executar flutter pub get
+        run: flutter pub get
+
+      - name: 5. Executar análise do código (flutter analyze)
+        run: flutter analyze
+
+      - name: 6. Executar testes disponíveis (flutter test)
+        run: flutter test
+
+      - name: 7. Compilar APK Android
+        run: flutter build apk --release
+
+      - name: 8. Disponibilizar o APK como artefato para download
+        uses: actions/upload-artifact@v4
+        with:
+          name: vertice-music-release-apk
+          path: build/app/outputs/flutter-apk/app-release.apk
+          retention-days: 14

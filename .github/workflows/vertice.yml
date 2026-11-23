@@ -35,7 +35,9 @@ jobs:
         run: flutter pub get
 
       - name: Corrigir withValues e providers
-        run: find lib -name "*.dart" -exec sed -i 's/\.withValues(alpha:/.withOpacity(/g' {} +
+        run: |
+          find lib -name "*.dart" -exec sed -i 's/\.withValues(alpha:/.withOpacity(/g' {} +
+          python3 -c 'from pathlib import Path; p = Path("lib/core/app_controller.dart"); s = p.read_text(); i = s.rfind("}"); p.write_text(s[:i] + "\n  List<dynamic> get providers => const [];\n" + s[i:]) if i != -1 and "get providers" not in s else None'
 
       - name: Compilar APK
         run: flutter build apk --release

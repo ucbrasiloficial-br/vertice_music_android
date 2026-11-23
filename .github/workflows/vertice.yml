@@ -1,89 +1,46 @@
-name: Vertice Music Pipeline
+name: Vertice Music Build
 
 on:
   workflow_dispatch:
     inputs:
-      descompilar_apk:
+      descompilar:
         description: "Descompilar APK apos o build? (true/false)"
         required: false
         default: "false"
-      salvar_no_repo:
-        description: "Salvar alteracoes no repositorio? (true/false)"
-        required: false
-        default: "true"
-
-permissions:
-  contents: write
 
 jobs:
-  run-all:
-    name: Build e Descompilar APK
+  build:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: vertice_music
 
     steps:
-      - name: 1. Baixar repositorio
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: 2. Extrair ZIP se necessario
-        run: if [ ! -f "pubspec.yaml" ] && [ ! -f "vertice_music/pubspec.yaml" ]; then ZIP_FILE=$(find . -maxdepth 3 -name "*.zip" | head -n 1); if [ -n "$ZIP_FILE" ]; then mkdir -p /tmp/zip_staging && unzip -q "$ZIP_FILE" -d /tmp/zip_staging && cp -rf /tmp/zip_staging/. . && rm -f "$ZIP_FILE"; fi; fi
-
-      - name: 3. Localizar pasta do projeto
-        run: FOUND_PUBSPEC=$(find . -maxdepth 3 -name "pubspec.yaml" -not -path "*/.*" | head -n 1) && test -n "$FOUND_PUBSPEC" && echo "PROJECT_DIR=$(dirname "$FOUND_PUBSPEC")" >> "$GITHUB_ENV"
-
-      - name: 4. Ajustar NDK no build.gradle
-        working-directory: ${{ env.PROJECT_DIR }}
-        run: if [ -f "android/app/build.gradle" ]; then sed -i 's/ndkVersion.*/ndkVersion = "25.1.8937393"/' android/app/build.gradle; fi
-
-      - name: 5. Configurar Java 17
-        uses: actions/setup-java@v4
+      - uses: actions/setup-java@v4
         with:
-          distribution: "temurin"
+          distribution: temurin
           java-version: "17"
-          cache: "gradle"
 
-      - name: 6. Configurar Flutter 3.24.3
-        uses: subosito/flutter-action@v2
+      - uses: subosito/flutter-action@v2
         with:
           flutter-version: "3.24.3"
-          channel: "stable"
-          cache: true
+          channel: stable
 
-      - name: 7. Baixar pacotes Flutter
-        working-directory: ${{ env.PROJECT_DIR }}
+      - name: Ajustar NDK
+        run: sed -i 's/ndkVersion.*/ndkVersion = "25.1.8937393"/' android/app/build.gradle || true
+
+      - name: Baixar dependencias
         run: flutter pub get
 
-      - name: 8. Corrigir withValues para withOpacity
-        working-directory: ${{ env.PROJECT_DIR }}
-        run: find lib -name "*.dart" -type f -exec sed -i 's/\.withValues(alpha:/.withOpacity(/g' {} +
+      - name: Corrigir withValues e providers
+        run: find lib -name "*.dart" -exec sed -i 's/\.withValues(alpha:/.withOpacity(/g' {} +
 
-      - name: 9. Garantir getter providers em app_controller.dart
-        working-directory: ${{ env.PROJECT_DIR }}
-        run: if [ -f "lib/core/app_controller.dart" ] && ! grep -q "get providers" lib/core/app_controller.dart; then sed -i '$ s/}$/\n  List<dynamic> get providers => const [];\n}/' lib/core/app_controller.dart; fi
-
-      - name: 10. Compilar APK release
-        working-directory: ${{ env.PROJECT_DIR }}
+      - name: Compilar APK
         run: flutter build apk --release
 
-      - name: 11. Enviar APK como artefato
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
-          name: vertice-music-release-apk
-          path: ${{ env.PROJECT_DIR }}/build/app/outputs/flutter-apk/app-release.apk
-          retention-days: 14
-
-      - name: 12. Descompilar APK com Apktool e JADX
-        if: ${{ github.event.inputs.descompilar_apk == 'true' }}
-        working-directory: ${{ env.PROJECT_DIR }}
-        run: mkdir -p /tmp/decompile_tools decompiled_output/apktool decompiled_output/jadx && curl -sSL "https://github.com/iBotPeaches/Apktool/releases/download/v2.9.3/apktool_2.9.3.jar" -o /tmp/decompile_tools/apktool.jar && curl -sSL "https://github.com/skylot/jadx/releases/download/v1.5.0/jadx-1.5.0.zip" -o /tmp/decompile_tools/jadx.zip && unzip -qo /tmp/decompile_tools/jadx.zip -d /tmp/decompile_tools/jadx && chmod +x /tmp/decompile_tools/jadx/bin/jadx && java -jar /tmp/decompile_tools/apktool.jar d -f build/app/outputs/flutter-apk/app-release.apk -o decompiled_output/apktool && /tmp/decompile_tools/jadx/bin/jadx -d decompiled_output/jadx build/app/outputs/flutter-apk/app-release.apk
-
-      - name: 13. Enviar artefato descompilado
-        if: ${{ github.event.inputs.descompilar_apk == 'true' }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: vertice-music-decompiled
-          path: ${{ env.PROJECT_DIR }}/decompiled_output/
-          retention-days: 14
-
-      - name: 14. Salvar alteracoes no repositorio
-        if: ${{ github.event.inputs.salvar_no_repo == 'true' }}
-        run: git config user.name "github-actions[bot]" && git config user.email "github-actions[bot]@users.noreply.github.com" && git add -A && (git diff --staged --quiet || (git commit -m "chore: atualiza build [skip ci]" && git push))
+          name: vertice-music-apk
+          path: vertice_music/build/app/outputs/flutter-apk/app-release.apk

@@ -1,22 +1,14 @@
-name: Extract ZIP to Repo Root & Build VÉRTICE MUSIC APK
+name: Descompactar ZIP na Raiz e Compilar APK
 
 on:
   workflow_dispatch:
     inputs:
-      zip_path:
-        description: "Caminho do arquivo .zip no repositório (ex.: vertice_music_android_flutter-v4.zip)"
-        required: false
-        default: "vertice_music_android_flutter-v4.zip"
-      zip_url:
-        description: "URL direta de um .zip (opcional; se preenchida, baixa antes de extrair)"
-        required: false
-        default: ""
-      run_flutter_build:
-        description: "Compilar APK após extrair? (true/false)"
+      apagar_zip_depois:
+        description: "Apagar o arquivo .zip após descompactar? (true/false)"
         required: false
         default: "true"
-      commit_extracted:
-        description: "Salvar os arquivos extraídos direto na raiz do repositório? (true/false)"
+      compilar_apk:
+        description: "Compilar o APK logo após extrair? (true/false)"
         required: false
         default: "true"
 
@@ -24,92 +16,83 @@ permissions:
   contents: write
 
 jobs:
-  extract-to-root-and-build:
-    name: Extract ZIP to Root & Build APK
+  extract-and-build:
+    name: Descompactar ZIP & Build
     runs-on: ubuntu-latest
 
     steps:
       - name: 1. Baixar o repositório
         uses: actions/checkout@v4
 
-      - name: 2. Localizar ou baixar o arquivo .zip
+      - name: 2. Encontrar o arquivo .zip na raiz
         run: |
-          mkdir -p /tmp/zip_work
-          if [ -n "${{ github.event.inputs.zip_url }}" ]; then
-            echo "Baixando ZIP de ${{ github.event.inputs.zip_url }}..."
-            curl -L --fail "${{ github.event.inputs.zip_url }}" -o /tmp/zip_work/source.zip
-            ZIP_FILE="/tmp/zip_work/source.zip"
-          else
-            ZIP_FILE="${{ github.event.inputs.zip_path }}"
-            if [ ! -f "$ZIP_FILE" ]; then
-              echo "Arquivo $ZIP_FILE não encontrado. Procurando .zip no repositório..."
-              ZIP_FILE=$(find . -maxdepth 2 -name "*.zip" | head -n 1)
-            fi
-          fi
-
-          if [ -z "$ZIP_FILE" ] || [ ! -f "$ZIP_FILE" ]; then
-            echo "ERRO: Nenhum arquivo .zip encontrado."
+          ZIP_FILE=$(find . -maxdepth 1 -name "*.zip" | head -n 1)
+          if [ -z "$ZIP_FILE" ]; then
+            echo "ERRO: Nenhum arquivo .zip encontrado na raiz do repositório."
+            ls -la
             exit 1
           fi
-
+          echo "Arquivo ZIP encontrado: $ZIP_FILE"
+          mkdir -p /tmp/zip_work
           cp "$ZIP_FILE" /tmp/zip_work/source.zip
-          echo "ZIP copiado para área temporária: $ZIP_FILE"
+          echo "ORIGINAL_ZIP=$ZIP_FILE" >> $GITHUB_ENV
 
-      - name: 3. Extrair diretamente na raiz do repositório
+      - name: 3. Extrair conteúdo direto na raiz do repositório
         run: |
-          rm -rf /tmp/zip_staging
           mkdir -p /tmp/zip_staging
           unzip -q /tmp/zip_work/source.zip -d /tmp/zip_staging
 
+          # Se houver apenas uma pasta dentro do ZIP (ex: vertice_music/), move o conteúdo dela para a raiz
           TOP_ENTRIES=$(ls -A /tmp/zip_staging | wc -l)
           FIRST_ENTRY=$(ls -A /tmp/zip_staging | head -n 1)
           if [ "$TOP_ENTRIES" -eq 1 ] && [ -d "/tmp/zip_staging/$FIRST_ENTRY" ]; then
-            echo "Achatando subpasta raiz '$FIRST_ENTRY' para a raiz do repositório..."
+            echo "Movendo arquivos de '$FIRST_ENTRY/' para a raiz..."
             cp -rf "/tmp/zip_staging/$FIRST_ENTRY/." .
           else
-            echo "Copiando conteúdo diretamente para a raiz do repositório..."
             cp -rf /tmp/zip_staging/. .
+          fi
+
+          if [ "${{ github.event.inputs.apagar_zip_depois }}" == "true" ]; then
+            rm -f "$ORIGINAL_ZIP"
           fi
 
           ls -la
 
-      - name: 4. Instalar Java compatível (JDK 17)
-        if: ${{ github.event.inputs.run_flutter_build == 'true' }}
+      - name: 4. Salvar arquivos descompactados no repositório
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "chore: descompacta projeto Flutter na raiz do repositório" || echo "Nada para commitar"
+          git push
+
+      - name: 5. Configurar Java (JDK 17)
+        if: ${{ github.event.inputs.compilar_apk == 'true' }}
         uses: actions/setup-java@v4
         with:
           distribution: "temurin"
           java-version: "17"
           cache: "gradle"
 
-      - name: 5. Configurar Android SDK e Instalar Flutter
-        if: ${{ github.event.inputs.run_flutter_build == 'true' }}
+      - name: 6. Configurar Flutter
+        if: ${{ github.event.inputs.compilar_apk == 'true' }}
         uses: subosito/flutter-action@v2
         with:
           flutter-version: "3.24.3"
           channel: "stable"
           cache: true
 
-      - name: 6. Executar flutter pub get, analyze e build apk
-        if: ${{ github.event.inputs.run_flutter_build == 'true' }}
+      - name: 7. Instalar dependências e compilar APK
+        if: ${{ github.event.inputs.compilar_apk == 'true' }}
         run: |
           flutter pub get
-          flutter analyze
           flutter build apk --release
 
-      - name: 7. Enviar APK (se compilado) como artefato
-        if: ${{ github.event.inputs.run_flutter_build == 'true' }}
+      - name: 8. Disponibilizar APK para download
+        if: ${{ github.event.inputs.compilar_apk == 'true' }}
         uses: actions/upload-artifact@v4
         with:
           name: vertice-music-release-apk
           path: build/app/outputs/flutter-apk/app-release.apk
           retention-days: 14
-
-      - name: 8. Commit e push dos arquivos extraídos na raiz
-        if: ${{ github.event.inputs.commit_extracted == 'true' }}
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add -A
-          git commit -m "chore: extrai conteúdo do ZIP diretamente na raiz do repositório" || echo "Sem alterações para commit"
-          git push
           

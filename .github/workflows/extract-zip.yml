@@ -1,3 +1,74 @@
+name: Descompactar ZIP e Compilar APK
+
+on:
+  push:
+    branches: [ "main", "master" ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  extract-and-build:
+    name: Descompactar ZIP & Build APK
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 1. Baixar o repositório
+        uses: actions/checkout@v4
+
+      - name: 2. Extrair ZIP (se ainda não houver pubspec.yaml)
+        run: |
+          if [ ! -f "pubspec.yaml" ] && [ ! -f "vertice_music/pubspec.yaml" ]; then
+            ZIP_FILE=$(find . -maxdepth 3 -name "*.zip" | head -n 1)
+            if [ -z "$ZIP_FILE" ]; then
+              echo "ERRO: Nenhum arquivo .zip ou pubspec.yaml encontrado."
+              ls -la
+              exit 1
+            fi
+
+            echo "Descompactando $ZIP_FILE..."
+            mkdir -p /tmp/zip_staging
+            unzip -q "$ZIP_FILE" -d /tmp/zip_staging
+
+            # Se houver apenas uma pasta dentro do ZIP (ex: vertice_music/), traz o conteúdo dela para a raiz
+            TOP_ENTRIES=$(ls -A /tmp/zip_staging | wc -l)
+            FIRST_ENTRY=$(ls -A /tmp/zip_staging | head -n 1)
+            if [ "$TOP_ENTRIES" -eq 1 ] && [ -d "/tmp/zip_staging/$FIRST_ENTRY" ]; then
+              cp -rf "/tmp/zip_staging/$FIRST_ENTRY/." .
+            else
+              cp -rf /tmp/zip_staging/. .
+            fi
+
+            rm -f "$ZIP_FILE"
+          fi
+
+          # Localiza exatamente onde está o pubspec.yaml
+          FOUND_PUBSPEC=$(find . -maxdepth 3 -name "pubspec.yaml" -not -path "*/.*" | head -n 1)
+          if [ -z "$FOUND_PUBSPEC" ]; then
+            echo "ERRO: pubspec.yaml não encontrado após extração."
+            ls -la
+            exit 1
+          fi
+
+          PROJECT_DIR=$(dirname "$FOUND_PUBSPEC")
+          echo "PROJECT_DIR=$PROJECT_DIR" >> $GITHUB_ENV
+          echo "Diretório do projeto Flutter definido para: $PROJECT_DIR"
+          ls -la "$PROJECT_DIR"
+
+      - name: 3. Configurar Java (JDK 17)
+        uses: actions/setup-java@v4
+        with:
+          distribution: "temurin"
+          java-version: "17"
+          cache: "gradle"
+
+      - name: 4. Configurar Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.24.3"
+          channel: "stable"
+          cache: true
       - name: Corrigir compatibilidade Flutter 3.24 e VerticeAppController
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
@@ -17,4 +88,36 @@ if idx != -1:
     p.write_text(text[:idx] + injection + text[idx:], encoding="utf-8")
 EOF
           fi
+          
+      - name: 5. Instalar dependências e compilar APK
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          flutter pub get
+          flutter build apk --release
+      - name: Garantir Android NDK 25.1.8937393 no build.gradle
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          BUILD_GRADLE="android/app/build.gradle"
+          if [ -f "$BUILD_GRADLE" ]; then
+            if grep -q "ndkVersion" "$BUILD_GRADLE"; then
+              sed -i 's/ndkVersion.*/ndkVersion = "25.1.8937393"/' "$BUILD_GRADLE"
+            else
+              sed -i 's/android {/android {\n        ndkVersion = "25.1.8937393"/' "$BUILD_GRADLE"
+            fi
+          fi
+          
+      - name: 6. Disponibilizar APK para download
+        uses: actions/upload-artifact@v4
+        with:
+          name: vertice-music-release-apk
+          path: ${{ env.PROJECT_DIR }}/build/app/outputs/flutter-apk/app-release.apk
+          retention-days: 14
+
+      - name: 7. Salvar arquivos descompactados no repositório
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "chore: descompacta projeto Flutter na raiz [skip ci]" || echo "Nenhuma alteração nova"
+          git push || echo "Aviso: verifique Settings > Actions > General > Read and write permissions se o push falhar"
           

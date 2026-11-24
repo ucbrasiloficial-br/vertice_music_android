@@ -1,0 +1,26 @@
+<lint-module
+    format="1"
+    dir="/home/runner/.pub-cache/hosted/pub.dev/audio_service-0.18.17/android"
+    name=":audio_service"
+    type="LIBRARY"
+    maven="com.ryanheise.audioservice:audio_service:"
+    agpVersion="8.3.2"
+    buildFolder="/home/runner/work/vertice_music_android/vertice_music_android/build/audio_service"
+    bootClassPath="/usr/local/lib/android/sdk/platforms/android-33/android.jar:/usr/local/lib/android/sdk/build-tools/34.0.0/core-lambda-stubs.jar"
+    javaSourceLevel="1.8"
+    compileTarget="android-33"
+    neverShrinking="true">
+  <lintOptions
+      disable="InvalidPackage"
+      abortOnError="true"
+      absolutePaths="true"
+      checkReleaseBuilds="true"
+      explainIssues="true">
+    <severities>
+      <severity
+        id="InvalidPackage"
+        severity="IGNORE" />
+    </severities>
+  </lintOptions>
+  <variant name="release"/>
+</lint-module>

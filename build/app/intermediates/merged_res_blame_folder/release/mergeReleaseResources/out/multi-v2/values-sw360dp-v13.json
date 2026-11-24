@@ -1,0 +1,19 @@
+{
+    "logs": [
+        {
+            "outputFile": "com.verticemusic.app-mergeReleaseResources-46:/values-sw360dp-v13/values-sw360dp-v13.xml",
+            "map": [
+                {
+                    "source": "/home/runner/.gradle/caches/transforms-3/f86b1348e8ff9c4230a7b01e8680f396/transformed/preference-1.2.1/res/values-sw360dp-v13/values-sw360dp-v13.xml",
+                    "from": {
+                        "startLines": "2",
+                        "startColumns": "4",
+                        "startOffsets": "55",
+                        "endColumns": "71",
+                        "endOffsets": "122"
+                    }
+                }
+            ]
+        }
+    ]
+}

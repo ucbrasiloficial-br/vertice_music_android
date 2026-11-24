@@ -1,0 +1,1 @@
+ /home/runner/work/vertice_music_android/vertice_music_android/.dart_tool/flutter_build/7fe128b9d84b5febe4fc9bb842a4db2f/native_assets.yaml: 

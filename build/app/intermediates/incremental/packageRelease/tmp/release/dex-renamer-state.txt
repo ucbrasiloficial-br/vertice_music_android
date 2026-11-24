@@ -1,0 +1,7 @@
+#Tue Nov 24 15:20:06 UTC 2026
+base.1=/home/runner/work/vertice_music_android/vertice_music_android/build/app/intermediates/dex/release/mergeDexRelease/classes2.dex
+path.1=classes2.dex
+base.0=/home/runner/work/vertice_music_android/vertice_music_android/build/app/intermediates/dex/release/mergeDexRelease/classes.dex
+renamed.1=classes2.dex
+renamed.0=classes.dex
+path.0=classes.dex
